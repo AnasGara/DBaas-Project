@@ -1,0 +1,65 @@
+name: souverain-dbaas
+x-api: &api
+  build: ./backend
+  image: souverain-dbaas-api:local
+  env_file: .env
+  environment:
+    APP_ENV: production
+    APP_DEBUG: "false"
+    APP_KEY: ${APP_KEY:?Renseignez APP_KEY dans .env}
+    APP_URL: ${APP_URL:-http://localhost:8080}
+    DB_CONNECTION: pgsql
+    DB_HOST: postgres
+    DB_PORT: 5432
+    DB_DATABASE: ${DB_DATABASE:-souverain}
+    DB_USERNAME: ${DB_USERNAME:-souverain}
+    DB_PASSWORD: ${DB_PASSWORD:?Renseignez DB_PASSWORD dans .env}
+    LOG_CHANNEL: stderr
+    CACHE_STORE: database
+    SESSION_DRIVER: database
+    MAIL_FROM_NAME: Souverain Cloud
+  volumes:
+    - app-storage:/var/www/html/storage
+  networks: [private]
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-souverain}
+      POSTGRES_USER: ${DB_USERNAME:-souverain}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Renseignez DB_PASSWORD dans .env}
+    volumes: [metadata:/var/lib/postgresql/data]
+    networks: [private]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *api
+    command: [php, artisan, migrate, --force]
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    <<: *api
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+  scheduler:
+    <<: *api
+    command: [php, artisan, schedule:work]
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+  console:
+    build: ./frontend
+    ports: ["127.0.0.1:8080:80"]
+    networks: [private]
+    restart: unless-stopped
+    depends_on: [api]
+volumes:
+  metadata:
+  app-storage:
+networks:
+  private:
