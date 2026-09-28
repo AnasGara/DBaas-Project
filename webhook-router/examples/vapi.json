@@ -1,0 +1,1 @@
+{"message":{"type":"end-of-call-report","call":{"id":"call-demo-001"},"endedReason":"customer-ended-call","artifact":{"transcript":"Demonstration payload; do not use real customer data in tests."}}}
