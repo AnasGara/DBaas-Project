@@ -1,0 +1,17 @@
+{
+  "tenant_id":"demo",
+  "event_type":"workflow.trigger",
+  "enabled":true,
+  "version":"1",
+  "endpoint":"https://hooks.example.com/internal/workflows",
+  "mapping":{"event_id":"/id","workflow_id":"/data/workflow_id","customer_id":"/data/customer_id"},
+  "schema":{
+    "type":"object",
+    "required":["id","type","data"],
+    "properties":{
+      "type":{"const":"workflow.trigger"},
+      "data":{"type":"object","required":["workflow_id","customer_id"],"properties":{"workflow_id":{"type":"string","minLength":1},"customer_id":{"type":"string","minLength":1}}}
+    },
+    "additionalProperties":false
+  }
+}
