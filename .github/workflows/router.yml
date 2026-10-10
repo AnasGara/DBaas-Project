@@ -1,0 +1,39 @@
+name: Webhook router verification
+on:
+  push:
+    paths: ['webhook-router/**', '.github/workflows/router.yml']
+  pull_request:
+    paths: ['webhook-router/**', '.github/workflows/router.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webhook-router
+    env:
+      AWS_DEFAULT_REGION: eu-west-3
+      SAM_CLI_TELEMETRY: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            webhook-router/requirements*.txt
+            webhook-router/requirements-dev.lock
+            webhook-router/src/requirements.txt
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check src tests scripts
+      - run: ruff format --check src tests scripts
+      - run: python scripts/audit_dependencies.py
+      - run: pytest --cov=router --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+      - run: sam validate --lint --region eu-west-3
+      - run: sam build
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: router-verification
+          path: webhook-router/coverage.xml
