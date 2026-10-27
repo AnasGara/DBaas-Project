@@ -1,5 +1,7 @@
 # Security model
 
+See [API authentication and receiver responsibilities](api.md), [configuration](configuration.md), and the [documentation index](README.md). These controls describe implementation behavior, not an external security certification.
+
 Public callers authenticate using high-entropy tenant bearer tokens; only digests are stored. Separate generated API usage keys meter requests. Tenant/provider identity comes only from authorizer context. Do not put secrets in URLs, route files, shell arguments, CI output or Git.
 
 Route updates, credential changes and replay require **operator IAM**, not a public administration endpoint. Use AWS SSO, short-lived credentials and separate deployment/route-admin/read roles. Enable CloudTrail management collection plus DynamoDB/SQS data events for route/replay audit; data-plane writes are not logged by default. Configure organization-level retention before production. Credential changes use an AWSCURRENT stage compare-and-swap and route changes use expected-version conditions.

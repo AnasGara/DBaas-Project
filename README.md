@@ -2,6 +2,38 @@
 
 AWS SAM service for authenticated, tenant-isolated webhook ingestion, dynamic DynamoDB routing and durable asynchronous delivery. Native Vapi `end-of-call-report` messages and workflow envelopes are supported. Source and deployment assets: [`webhook-router/`](webhook-router/).
 
+## Documentation
+
+Start with the [documentation index](webhook-router/docs/README.md) or the [step-by-step getting started guide](webhook-router/docs/getting-started.md).
+
+| Audience | Guide |
+|---|---|
+| New developers | [Local setup and first deployment](webhook-router/docs/getting-started.md), [development and testing](webhook-router/docs/development.md) |
+| Webhook producers | [HTTP API and Vapi integration](webhook-router/docs/api.md), [OpenAPI specification](webhook-router/docs/openapi.yaml) |
+| Integration engineers | [Routing, transformations and configuration](webhook-router/docs/configuration.md), [destination contract](webhook-router/docs/api.md#downstream-delivery-contract) |
+| Platform engineers | [Architecture](webhook-router/docs/architecture.md), [DynamoDB data model](webhook-router/docs/data-model.md), [deployment and recovery](webhook-router/docs/runbook.md) |
+| Operators | [Metrics and alarms](webhook-router/docs/observability.md), [troubleshooting](webhook-router/docs/troubleshooting.md) |
+| Reviewers and release owners | [Security](webhook-router/docs/security.md), [acceptance gates](webhook-router/docs/acceptance.md), [verification evidence](webhook-router/docs/verification.md) |
+
+## Repository layout
+
+```text
+webhook-router/
+  src/router/            Lambda handlers, validation, transport and telemetry
+  src/requirements.txt   Exact runtime dependency pins
+  template.yaml          SAM infrastructure, roles, queues, tables and alarms
+  samconfig.toml         Environment-specific deployment defaults
+  scripts/               Operator tools, acceptance probe and dependency audit
+  tests/                 Isolated contract, failure-path and infrastructure tests
+  schemas/               Workflow envelope JSON Schema
+  examples/              Synthetic Vapi/workflow payloads and route definitions
+  docs/                  Human-readable guides and OpenAPI contract
+.github/workflows/        CI verification for the router and legacy application
+frontend/, backend/      Separate legacy React/Laravel DBaaS prototype
+```
+
+The webhook service runs on Python 3.12 and AWS managed services. It does not require the legacy React frontend, Laravel API, PHP, Composer or the root Docker Compose stack.
+
 ```mermaid
 flowchart LR
     P[Vapi / Workflow provider] --> G[API Gateway REST API]
@@ -46,6 +78,8 @@ python -m venv .venv
 cd webhook-router
 ..\.venv\Scripts\python -m pytest --cov=router --cov-report=term-missing
 ..\.venv\Scripts\ruff check src tests scripts
+..\.venv\Scripts\ruff format --check src tests scripts
+..\.venv\Scripts\python scripts/audit_dependencies.py
 ..\.venv\Scripts\sam validate --lint --region eu-west-3
 ```
 
@@ -57,17 +91,17 @@ Read the [runbook](webhook-router/docs/runbook.md). Prepare a dedicated AWS role
 
 ```powershell
 cd webhook-router
-python scripts/manage.py --region eu-west-3 preflight
-sam build
-sam deploy --config-env dev --guided
+..\.venv\Scripts\python scripts/manage.py --region eu-west-3 preflight
+..\.venv\Scripts\sam build
+..\.venv\Scripts\sam deploy --config-env dev --guided
 ```
 
 Use staging/prod configs for promotion. Explicitly supply `AllowedDestinationHosts` and `AlarmEmail`; empty hosts intentionally deny all deliveries. Retained resources require deliberate removal/migration.
 
 ```powershell
-python scripts/manage.py --region eu-west-3 --stack webhook-router-dev configure-client --tenant demo --providers workflow,vapi
-python scripts/manage.py --region eu-west-3 --stack webhook-router-dev put-route --file examples/route.json --sample examples/workflow.json
-python scripts/manage.py --region eu-west-3 --stack webhook-router-dev put-route --file examples/vapi-route.json --sample examples/vapi.json
+..\.venv\Scripts\python scripts/manage.py --region eu-west-3 --stack webhook-router-dev configure-client --tenant demo --providers workflow,vapi
+..\.venv\Scripts\python scripts/manage.py --region eu-west-3 --stack webhook-router-dev put-route --file examples/route.json --sample examples/workflow.json
+..\.venv\Scripts\python scripts/manage.py --region eu-west-3 --stack webhook-router-dev put-route --file examples/vapi-route.json --sample examples/vapi.json
 ```
 
 Tokens are entered with a hidden prompt. Configure the provider with `Authorization: Bearer <token>`; API Gateway receives the usage key from the authorizer. For Vapi, use a saved server configuration and custom credential, subscribed to asynchronous end-of-call reports. Synchronous tool calls are outside this service's contract. [Vapi authentication](https://docs.vapi.ai/server-url/server-authentication), [server events](https://docs.vapi.ai/server-url/events).

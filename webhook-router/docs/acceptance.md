@@ -1,5 +1,7 @@
 # Production acceptance gate
 
+Use the [setup guide](getting-started.md), [API reference](api.md), [configuration reference](configuration.md), and [monitoring reference](observability.md) to prepare these checks. Keep evidence separately for each environment and release.
+
 Local verification is not proof of deployed readiness. Run these gates in staging and retain evidence before production promotion:
 
 | Gate | Expected evidence |

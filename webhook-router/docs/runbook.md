@@ -1,5 +1,7 @@
 # Deployment and incident runbook
 
+Part of the [documentation index](README.md). Commands here assume an activated Python 3.12 virtual environment and working directory `webhook-router/`; [getting started](getting-started.md) gives explicit executable paths for PowerShell and POSIX. Consult [configuration](configuration.md) for every parameter/route field and [observability](observability.md) for exact alarm definitions.
+
 ## Prerequisites and deployment
 
 1. Choose a dedicated account/region and short-lived role. Review the SAM changeset. Dev, staging and prod require separate stacks and Environment values; do not change an existing environment in place.

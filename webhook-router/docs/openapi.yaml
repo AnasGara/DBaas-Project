@@ -1,0 +1,206 @@
+openapi: 3.1.0
+info:
+  title: Serverless Webhook Event Router
+  version: 1.0.0
+  description: >-
+    Documentation for the implemented ingestion contract. Accepted events are delivered
+    asynchronously. This file does not deploy or override the AWS SAM API definition.
+servers:
+  - url: https://{apiId}.execute-api.{region}.amazonaws.com/{environment}
+    variables:
+      apiId:
+        default: replace-with-stack-output
+      region:
+        default: eu-west-3
+      environment:
+        default: dev
+        enum: [dev, staging, prod]
+security:
+  - TenantBearer: []
+paths:
+  /webhooks:
+    post:
+      operationId: ingestWebhook
+      summary: Validate and durably accept an asynchronous webhook
+      description: >-
+        Request size is limited to 65,536 decoded UTF-8 bytes by the handler.
+        Tenant and provider scopes come from bearer authentication. No caller-supplied
+        idempotency header overrides the body ID. Content-Encoding must be omitted or identity.
+        Per-tenant routing schemas can impose additional constraints beyond this shared contract.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/WorkflowEvent'
+                - $ref: '#/components/schemas/VapiReport'
+            examples:
+              workflow:
+                value:
+                  id: workflow-run-001
+                  type: workflow.trigger
+                  data:
+                    workflow_id: customer-onboarding
+                    customer_id: demo-123
+              vapi:
+                value:
+                  message:
+                    type: end-of-call-report
+                    call:
+                      id: call-demo-001
+                    endedReason: customer-ended-call
+      responses:
+        '202':
+          description: Event and publication intent committed; downstream work is pending.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+              example:
+                accepted: true
+                duplicate: false
+                event_id: workflow-run-001
+        '200':
+          description: Matching event already exists; no new publication is created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Duplicate'
+              example:
+                accepted: true
+                duplicate: true
+                event_id: workflow-run-001
+                status: DELIVERED
+        '400':
+          description: Invalid/oversized payload, unconfigured or disabled type, or schema/projection rejection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_event_or_unconfigured_type
+        '401':
+          description: Missing or invalid bearer credential.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Provider scope, usage-key or access rejection.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Existing tenant-scoped event ID has conflicting content.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: event_id_conflict
+        '415':
+          description: JSON content type required or content encoding unsupported.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: API Gateway request throttling; retry the same event with bounded backoff.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Route configuration or dependency temporarily unavailable; acknowledgement may be uncertain.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Other Gateway/platform failure; body may vary. Retry uncertain 5xx acknowledgements with the same ID/body.
+components:
+  securitySchemes:
+    TenantBearer:
+      type: http
+      scheme: bearer
+      description: High-entropy tenant token; not a JWT. API usage keys are supplied by the authorizer.
+  schemas:
+    WorkflowEvent:
+      type: object
+      required: [id, type, data]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$'
+        type:
+          type: string
+          pattern: '^(?!vapi\.)[a-z][a-z0-9_.-]{0,79}$'
+        data:
+          type: object
+      allOf:
+        - if:
+            properties:
+              type:
+                const: workflow.trigger
+            required: [type]
+          then:
+            properties:
+              data:
+                required: [workflow_id]
+                properties:
+                  workflow_id:
+                    type: string
+                    pattern: '\S'
+    VapiReport:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: object
+          required: [type, call]
+          properties:
+            type:
+              const: end-of-call-report
+            call:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  maxLength: 176
+                  pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$'
+                  description: Normalized ID adds a 24-character prefix and must remain within 200 characters.
+    Accepted:
+      type: object
+      required: [accepted, duplicate, event_id]
+      properties:
+        accepted:
+          const: true
+        duplicate:
+          const: false
+        event_id:
+          type: string
+    Duplicate:
+      type: object
+      required: [accepted, duplicate, event_id, status]
+      properties:
+        accepted:
+          const: true
+        duplicate:
+          const: true
+        event_id:
+          type: string
+        status:
+          type: string
+          enum: [ACCEPTED, PROCESSING, RETRY, DELIVERED]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        request_id:
+          type: string

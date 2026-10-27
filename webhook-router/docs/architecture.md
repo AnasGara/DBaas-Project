@@ -1,5 +1,39 @@
 # Architecture and delivery semantics
 
+See the [documentation index](README.md), [API/receiver contract](api.md), and [data model](data-model.md) for request details and stored state.
+
+## Successful delivery sequence
+
+```mermaid
+sequenceDiagram
+    participant Producer
+    participant Gateway as API Gateway / Authorizer
+    participant Ingest as Ingest Lambda
+    participant DB as DynamoDB
+    participant Dispatch as Stream / Reconciler
+    participant Queue as SQS
+    participant Worker
+    participant Receiver
+    Producer->>Gateway: POST JSON with bearer token
+    Gateway->>Ingest: Trusted tenant and provider scope
+    Ingest->>DB: Consistent duplicate and route reads
+    Ingest->>DB: Atomic event + outbox conditional transaction
+    DB-->>Ingest: Commit
+    Ingest-->>Producer: 202 accepted
+    DB-->>Dispatch: Outbox INSERT or due-index recovery
+    Dispatch->>Queue: Event reference
+    Queue-->>Dispatch: Enqueue acknowledged
+    Dispatch->>DB: Delete outbox entry
+    Queue->>Worker: Event reference
+    Worker->>DB: Read snapshot and acquire fenced lease
+    Worker->>Receiver: HTTPS POST with stable Idempotency-Key
+    Receiver-->>Worker: 2xx after accepting responsibility
+    Worker->>DB: Fenced DELIVERED update
+    Worker-->>Queue: Successful record acknowledgement
+```
+
+The acknowledgement to the producer precedes downstream delivery. A crash between any two asynchronous steps is handled through outbox recovery, queue retry, lease recovery and receiver idempotency as described below.
+
 ## Authentication and ingestion
 
 The regional REST API uses a token authorizer without authorization caching. Secrets Manager stores tenant IDs, SHA-256 bearer digests, allowed providers, usage key values and enabled flags. A tenant's generated usage key is returned as `usageIdentifierKey`; keys meter traffic rather than acting as the only authentication. Fetching credentials per authorizer invocation supports prompt revocation but adds latency and Secrets Manager cost. A single secret is limited to 64 KiB; use a dedicated keyed credential store for large tenant fleets.
