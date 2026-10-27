@@ -1,6 +1,6 @@
 # Pinned runtime dependency closure; generated 2026-10-27.
 attrs==26.1.0
-boto3==1.43.108
+boto3==1.43.118
 botocore==1.43.120
 jmespath==1.1.0
 jsonschema==4.26.0
