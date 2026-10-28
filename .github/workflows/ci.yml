@@ -1,7 +1,13 @@
 name: Validate platform
 on: [push, pull_request]
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   api:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -19,6 +25,7 @@ jobs:
       - run: vendor/bin/pint --test
       - run: php artisan test
   console:
+    timeout-minutes: 20
     runs-on: ubuntu-latest
     defaults:
       run:

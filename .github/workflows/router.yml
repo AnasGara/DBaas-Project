@@ -6,8 +6,12 @@ on:
     paths: ['webhook-router/**', '.github/workflows/router.yml']
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   verify:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,5 +39,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          retention-days: 14
           name: router-verification
           path: webhook-router/coverage.xml
