@@ -134,8 +134,8 @@ class PlatformController extends Controller
     {
         $this->admin($r);
         abort_unless(DB::table('users')->where('id', $id)->where('role', 'client')->exists(), 404);
-        DB::table('users')->where('id',$id)->update(['status' => 'active', 'updated_at' => now()]);
-        $this->audit($r,'account.activated',['client_id' => $id]);
+        DB::table('users')->where('id', $id)->update(['status' => 'active', 'updated_at' => now()]);
+        $this->audit($r, 'account.activated', ['client_id' => $id]);
 
         return ['message' => 'Compte activé.'];
     }

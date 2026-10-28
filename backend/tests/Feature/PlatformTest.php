@@ -109,7 +109,7 @@ class PlatformTest extends TestCase
         Mail::fake();
         User::factory()->create(['email' => 'login@example.test', 'password' => 'VeryStrong12345', 'status' => 'active']);
         $this->postJson('/api/login', ['email' => 'login@example.test', 'password' => 'VeryStrong12345', 'channel' => 'email'])->assertOk()->assertJsonStructure(['challenge_id', 'expires_in'])->assertJsonMissingPath('code');
-        $this->assertDatabaseCount('mfa_challenges',1);
-        $this->postJson('/api/login',['email' => 'login@example.test', 'password' => 'VeryStrong12345', 'channel' => 'whatsapp'])->assertUnprocessable();
+        $this->assertDatabaseCount('mfa_challenges', 1);
+        $this->postJson('/api/login', ['email' => 'login@example.test', 'password' => 'VeryStrong12345', 'channel' => 'whatsapp'])->assertUnprocessable();
     }
 }
